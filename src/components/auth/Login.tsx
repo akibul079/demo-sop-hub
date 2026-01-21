@@ -15,7 +15,7 @@ declare global {
 }
 
 //  Google Cloud Console
-const GOOGLE_CLIENT_ID = '438126746650-vks0pg8lbcdq5d0feq6j25us34ohug0m.apps.googleusercontent.com';
+const GOOGLE_CLIENT_ID = '457807005853-8g6hol2rjbqjqaudfh9sd71du61drlrt.apps.googleusercontent.com';
 
 
 
