@@ -1,0 +1,379 @@
+
+import { createClient } from '@supabase/supabase-js';
+
+const LOCAL_STORAGE_KEY = 'sophub_local_db_v2';
+
+// --- SEED DATA ---
+const SEED_DB = {
+    users: [
+        {
+            id: 'u1',
+            email: 'demo@example.com',
+            password: 'password',
+            first_name: 'Sarah',
+            last_name: 'Johnson',
+            role: 'SUPER_ADMIN',
+            status: 'ACTIVE',
+            workspace_id: 'ws1',
+            avatar_url: 'https://ui-avatars.com/api/?name=Sarah+Johnson&background=FF158A&color=fff',
+            job_title: 'CEO',
+            created_at: new Date().toISOString()
+        },
+        {
+            id: 'u2',
+            email: 'admin@example.com',
+            password: 'password',
+            first_name: 'Mike',
+            last_name: 'Anderson',
+            role: 'ADMIN',
+            status: 'ACTIVE',
+            workspace_id: 'ws1',
+            avatar_url: 'https://ui-avatars.com/api/?name=Mike+Anderson&background=A25DDC&color=fff',
+            job_title: 'VP of Engineering',
+            department: 'Engineering',
+            created_at: new Date(Date.now() - 86400000 * 10).toISOString()
+        },
+        {
+            id: 'u3',
+            email: 'manager@example.com',
+            password: 'password',
+            first_name: 'Lisa',
+            last_name: 'Chen',
+            role: 'MANAGER',
+            status: 'ACTIVE',
+            workspace_id: 'ws1',
+            manager_id: 'u2',
+            avatar_url: 'https://ui-avatars.com/api/?name=Lisa+Chen&background=0073EA&color=fff',
+            job_title: 'Engineering Manager',
+            department: 'Engineering',
+            created_at: new Date(Date.now() - 86400000 * 5).toISOString()
+        },
+        {
+            id: 'u4',
+            email: 'member@example.com',
+            password: 'password',
+            first_name: 'Tom',
+            last_name: 'Wilson',
+            role: 'MEMBER',
+            status: 'ACTIVE',
+            workspace_id: 'ws1',
+            manager_id: 'u3',
+            avatar_url: 'https://ui-avatars.com/api/?name=Tom+Wilson&background=676879&color=fff',
+            job_title: 'Software Engineer',
+            department: 'Engineering',
+            created_at: new Date(Date.now() - 86400000 * 1).toISOString()
+        }
+    ],
+    workspaces: [
+        { id: 'ws1', name: 'Acme Corp', slug: 'acme', logo_url: null, created_at: new Date().toISOString() }
+    ],
+    folders: [
+        { id: 'f1', name: 'General', color: '#0073EA', description: 'General procedures', parent_id: null, is_open: true, created_at: new Date().toISOString() }
+    ],
+    sops: [
+        {
+            id: 's1',
+            title: 'Welcome to SOP Hub',
+            short_description: 'Getting started guide for new employees.',
+            content: {
+                steps: [
+                    { id: 'step1', title: 'Setup Profile', description: 'Update your avatar and job title.', order: 0 },
+                    { id: 'step2', title: 'Explore Teams', description: 'Check out the new org chart feature.', order: 1 }
+                ]
+            },
+            status: 'PUBLISHED',
+            difficulty: 'BEGINNER',
+            created_by: 'u1',
+            workspace_id: 'ws1',
+            version: 1,
+            assigned_user_ids: ['u1', 'u2', 'u3', 'u4'],
+            folder_ids: ['f1'],
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+        }
+    ],
+    sop_folders: [
+        { id: 'sf1', sop_id: 's1', folder_id: 'f1' }
+    ],
+    sop_assignments: [
+        { id: 'sa1', sop_id: 's1', user_id: 'u1' },
+        { id: 'sa2', sop_id: 's1', user_id: 'u4' }
+    ],
+    checklists: [],
+    approval_requests: [],
+    comments: [],
+    user_invites: [
+        {
+            id: 'inv1',
+            email: 'pending@example.com',
+            role: 'MEMBER',
+            status: 'PENDING',
+            token: 'abc-123',
+            workspace_id: 'ws1',
+            invited_by: 'u2',
+            created_at: new Date().toISOString(),
+            expires_at: new Date(Date.now() + 86400000 * 7).toISOString()
+        }
+    ],
+    activity_logs: [
+        {
+            id: 'log1',
+            user_id: 'u1',
+            action: 'WORKSPACE_SETTINGS_UPDATED',
+            entity_type: 'WORKSPACE',
+            entity_id: 'ws1',
+            details: { change: 'Updated branding' },
+            created_at: new Date(Date.now() - 3600000).toISOString()
+        }
+    ]
+};
+
+// --- DB HELPERS ---
+const loadDB = () => {
+    const stored = localStorage.getItem(LOCAL_STORAGE_KEY);
+    if (stored) return JSON.parse(stored);
+    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(SEED_DB));
+    return SEED_DB;
+};
+
+const saveDB = (db: any) => {
+    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(db));
+};
+
+let db = loadDB();
+
+// --- MOCK CLIENT ---
+
+class MockSupabaseClient {
+    auth = {
+        getSession: async () => {
+            const sessionStr = localStorage.getItem('sophub_session');
+            if (!sessionStr) return { data: { session: null } };
+            return { data: { session: JSON.parse(sessionStr) } };
+        },
+        onAuthStateChange: (callback: any) => {
+            const sessionStr = localStorage.getItem('sophub_session');
+            if (sessionStr) callback('SIGNED_IN', JSON.parse(sessionStr));
+            return { data: { subscription: { unsubscribe: () => { } } } };
+        },
+        signInWithPassword: async ({ email, password }: any) => {
+            db = loadDB();
+            const user = db.users.find((u: any) => u.email === email);
+            if (user) {
+                const session = { user, access_token: 'mock-jwt-' + Date.now() };
+                localStorage.setItem('sophub_session', JSON.stringify(session));
+                return { data: { user, session }, error: null };
+            }
+            return { data: null, error: { message: 'Invalid credentials' } };
+        },
+        signInWithIdToken: async () => ({ error: null }),
+        signUp: async ({ email, password, options }: any) => {
+            db = loadDB();
+            if (db.users.find((u: any) => u.email === email)) {
+                return { data: null, error: { message: 'User already exists' } };
+            }
+            const newUser = {
+                id: 'u_' + Date.now(),
+                email,
+                password,
+                first_name: options?.data?.first_name || '',
+                last_name: options?.data?.last_name || '',
+                role: 'SUPER_ADMIN',
+                status: 'ACTIVE',
+                workspace_id: 'ws1',
+                avatar_url: `https://ui-avatars.com/api/?name=${options?.data?.first_name}+${options?.data?.last_name}`,
+                created_at: new Date().toISOString()
+            };
+            db.users.push(newUser);
+            saveDB(db);
+
+            const session = { user: newUser, access_token: 'mock-jwt-' + Date.now() };
+            localStorage.setItem('sophub_session', JSON.stringify(session));
+            return { data: { user: newUser, session }, error: null };
+        },
+        signOut: async () => {
+            localStorage.removeItem('sophub_session');
+        },
+        resetPasswordForEmail: async () => { }
+    };
+
+    from(table: string) {
+        return new MockQueryBuilder(table);
+    }
+}
+
+class MockQueryBuilder {
+    private table: string;
+    private filters: any[] = [];
+    private ordering: any = null;
+    private _single = false;
+    private _selectQuery: string | null = null;
+    private _operation: 'SELECT' | 'INSERT' | 'UPDATE' | 'DELETE' = 'SELECT';
+    private _data: any = null;
+
+    constructor(table: string) {
+        this.table = table;
+    }
+
+    select(query: string = '*') {
+        if (this._operation !== 'INSERT' && this._operation !== 'UPDATE') {
+            this._operation = 'SELECT';
+        }
+        this._selectQuery = query;
+        return this;
+    }
+
+    insert(data: any | any[]) {
+        this._operation = 'INSERT';
+        this._data = data;
+        return this; // Return this to allow chaining .select()
+    }
+
+    update(data: any) {
+        this._operation = 'UPDATE';
+        this._data = data;
+        return this;
+    }
+
+    delete() {
+        this._operation = 'DELETE';
+        return this;
+    }
+
+    eq(column: string, value: any) {
+        this.filters.push({ column, value, operator: 'eq' });
+        return this;
+    }
+
+    in(column: string, values: any[]) {
+        this.filters.push({ column, value: values, operator: 'in' });
+        return this;
+    }
+
+    order(column: string, { ascending }: any = {}) {
+        this.ordering = { column, ascending };
+        return this;
+    }
+
+    single() {
+        this._single = true;
+        return this;
+    }
+
+    // EXECUTION
+    async then(resolve: any, reject: any) {
+        db = loadDB(); // Helper to ensuring fresh state
+        if (!db[this.table]) db[this.table] = [];
+
+        let resultData: any = null;
+        let error: any = null;
+
+        try {
+            if (this._operation === 'INSERT') {
+                const items = Array.isArray(this._data) ? this._data : [this._data];
+                const newItems = items.map((item: any) => ({
+                    ...item,
+                    id: item.id || `${this.table}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                    created_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString()
+                }));
+
+                db[this.table].push(...newItems);
+                saveDB(db);
+                resultData = this._single ? newItems[0] : newItems;
+
+            } else if (this._operation === 'UPDATE') {
+                let updateCount = 0;
+                db[this.table] = db[this.table].map((item: any) => {
+                    const match = this.filters.every(filter => this.checkFilter(item, filter));
+                    if (match) {
+                        updateCount++;
+                        return { ...item, ...this._data, updated_at: new Date().toISOString() };
+                    }
+                    return item;
+                });
+                saveDB(db);
+                // Simulate return value? usually update returns null unless select is called
+                resultData = null;
+
+            } else if (this._operation === 'DELETE') {
+                const initialLen = db[this.table].length;
+                db[this.table] = db[this.table].filter((item: any) => {
+                    const match = this.filters.every(filter => this.checkFilter(item, filter));
+                    return !match;
+                });
+                saveDB(db);
+                resultData = null;
+
+            } else if (this._operation === 'SELECT') {
+                let data = [...db[this.table]];
+
+                // Apply Filters
+                data = data.filter((item: any) => this.filters.every(filter => this.checkFilter(item, filter)));
+
+                // Apply Ordering
+                if (this.ordering) {
+                    data.sort((a: any, b: any) => {
+                        const valA = a[this.ordering.column];
+                        const valB = b[this.ordering.column];
+                        if (valA < valB) return this.ordering.ascending ? -1 : 1;
+                        if (valA > valB) return this.ordering.ascending ? 1 : -1;
+                        return 0;
+                    });
+                }
+
+                // Manual Joins for 'sops'
+                if (this.table === 'sops') {
+                    data = data.map((sop: any) => ({
+                        ...sop,
+                        sop_folders: (db.sop_folders || []).filter((sf: any) => sf.sop_id === sop.id),
+                        sop_assignments: (db.sop_assignments || []).filter((sa: any) => sa.sop_id === sop.id),
+                        assigned_user_ids: (db.sop_assignments || []).filter((sa: any) => sa.sop_id === sop.id).map((x: any) => x.user_id),
+                        folder_ids: (db.sop_folders || []).filter((sf: any) => sf.sop_id === sop.id).map((x: any) => x.folder_id),
+                        comments: (db.comments || []).filter((c: any) => c.sop_id === sop.id).map((c: any) => ({
+                            ...c,
+                            author: db.users.find((u: any) => u.id === c.user_id) || { name: 'Unknown' }
+                        }))
+                    }));
+                }
+
+                // Manual Joins for 'approval_requests'
+                if (this.table === 'approval_requests') {
+                    data = data.map((req: any) => ({
+                        ...req,
+                        submittedBy: db.users.find((u: any) => u.id === req.submitted_by_id),
+                        reviewedBy: db.users.find((u: any) => u.id === req.reviewed_by_id)
+                    }));
+                }
+
+                // Manual Joins for 'checklists'
+                if (this.table === 'checklists') {
+                    data = data.map((c: any) => {
+                        const sop = db.sops.find((s: any) => s.id === c.sop_id);
+                        return {
+                            ...c,
+                            sops: sop ? { title: sop.title } : { title: 'Unknown SOP' }
+                        };
+                    });
+                }
+
+                resultData = this._single ? (data[0] || null) : data;
+                if (this._single && !resultData) {
+                    error = { code: 'PGRST116', message: 'No rows found' };
+                }
+            }
+        } catch (e: any) {
+            error = e;
+        }
+
+        resolve({ data: resultData, error });
+    }
+
+    private checkFilter(item: any, filter: any) {
+        if (filter.operator === 'eq') return item[filter.column] == filter.value;
+        if (filter.operator === 'in') return filter.value.includes(item[filter.column]);
+        return true;
+    }
+}
+
+export const supabase = new MockSupabaseClient() as any;
