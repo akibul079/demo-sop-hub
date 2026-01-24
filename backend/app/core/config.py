@@ -24,13 +24,13 @@ class Settings(BaseSettings):
     # Database
     DATABASE_URL: str = "sqlite+aiosqlite:///.sophub.db"
 
-    # Google OAuth Settings
-    GOOGLE_CLIENT_ID: str = "457807005853-8g6hol2rjbqjqaudfh9sd71du61drl"
+    # Google OAuth Settings (COMPLETE)
+    GOOGLE_CLIENT_ID: str = "457807005853-8g6hol2rjbqjqaudfh9sd71du61drlt.apps.googleusercontent.com"
     GOOGLE_CLIENT_SECRET: str = ""  # Set in environment
 
     # Supabase Settings
     SUPABASE_URL: str = "https://odfnlpmskdkrcanyuipb.supabase.co"
-    SUPABASE_ANON_KEY: str = "sb_publishable_WJreEfGWivoxXwV41Kfw_K6HWlEj35"
+    SUPABASE_ANON_KEY: str = "sb_publishable_WJreEfGWivoxXwV41LKfw_K6HWlEj35"
     SUPABASE_SERVICE_KEY: str = ""  # Set in environment
 
     # Frontend URL
