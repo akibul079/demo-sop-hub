@@ -1,14 +1,15 @@
-
-from typing import List, Union
-from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import AnyHttpUrl, validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
+from typing import List, Union
+
 
 class Settings(BaseSettings):
+    # Project Settings
     PROJECT_NAME: str = "SOP Hub Backend"
     API_V1_STR: str = "/api/v1"
-    SECRET_KEY: str = "changethis_secret_key_for_jwt_tokens" # Change in production!
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 8 # 8 days
-    
+    SECRET_KEY: str = "changethis_secret_key_for_jwt_tokens"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 8
+
     # CORS
     BACKEND_CORS_ORIGINS: List[AnyHttpUrl] = []
 
@@ -21,8 +22,28 @@ class Settings(BaseSettings):
         raise ValueError(v)
 
     # Database
-    DATABASE_URL: str = "sqlite+aiosqlite:///./sophub.db" # Default to SQLite for local
+    DATABASE_URL: str = "sqlite+aiosqlite:///.sophub.db"
+
+    # Google OAuth Settings
+    GOOGLE_CLIENT_ID: str = "457807005853-8g6hol2rjbqjqaudfh9sd71du61drl"
+    GOOGLE_CLIENT_SECRET: str = ""  # Set in environment
+
+    # Supabase Settings
+    SUPABASE_URL: str = "https://odfnlpmskdkrcanyuipb.supabase.co"
+    SUPABASE_ANON_KEY: str = "sb_publishable_WJreEfGWivoxXwV41Kfw_K6HWlEj35"
+    SUPABASE_SERVICE_KEY: str = ""  # Set in environment
+
+    # Frontend URL
+    FRONTEND_URL: str = "http://localhost:3000"
+
+    # Email Settings (for SendGrid or similar)
+    SENDGRID_API_KEY: str = ""  # Set in environment
+    FROM_EMAIL: str = "noreply@sophub.com"
+
+    # JWT Settings
+    JWT_ALGORITHM: str = "HS256"
 
     model_config = SettingsConfigDict(case_sensitive=True, env_file=".env")
+
 
 settings = Settings()

@@ -30,17 +30,17 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 // Helper to map Supabase user + DB profile to App User
 const mapUser = (authUser: SupabaseUser, profile: any): User => ({
   id: authUser.id,
-  name: `${profile.first_name} ${profile.last_name}`,
-  firstName: profile.first_name,
-  lastName: profile.last_name,
+  name: `${profile.first_name || profile.full_name || ''} ${profile.last_name || ''}`.trim(),
+  firstName: profile.first_name || profile.full_name || '',
+  lastName: profile.last_name || '',
   email: authUser.email!,
   avatar:
     profile.avatar_url ||
-    `https://ui-avatars.com/api/?name=${profile.first_name}+${profile.last_name}&background=0073EA&color=fff`,
+    `https://ui-avatars.com/api/?name=${encodeURIComponent((profile.first_name || '') + ' ' + (profile.last_name || ''))}&background=0073EA&color=fff`,
   role: profile.role as UserRole,
   status: profile.status as UserStatus,
-  jobTitle: profile.job_title,
-  department: profile.department,
+  jobTitle: profile.job_title || '',
+  department: profile.department || '',
   joinedAt: profile.created_at,
   workspaceId: profile.workspace_id,
   managerId: profile.manager_id,
@@ -57,12 +57,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   // Fetch user profile from database
   const fetchProfile = async (userId: string) => {
     try {
-      console.log("🔍 fetchProfile called for userId:", userId);
-      console.log("🔍 About to query Supabase...");
+      console.log(" fetchProfile called for userId:", userId);
+      console.log(" About to query Supabase...");
 
       // Add timeout to the query
       const queryPromise = supabase
-        .from("users")
+        .from("profiles")
         .select("*")
         .eq("id", userId)
         .single();
@@ -79,10 +79,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         timeoutPromise,
       ]);
 
-      console.log("📊 Supabase response:", { profile, error });
+      console.log(" Supabase response:", { profile, error });
 
       if (error) {
-        console.error("❌ Error fetching profile:", error);
+        console.error(" Error fetching profile:", error);
         return null;
       }
 
@@ -93,30 +93,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         const appUser = mapUser(authUser, profile);
         setUser(appUser);
 
-        // Fetch workspace if user has one
-        if (profile.workspace_id) {
-          const { data: ws, error: wsError } = await supabase
-            .from("workspaces")
-            .select("*")
-            .eq("id", profile.workspace_id)
-            .single();
 
-          if (ws && !wsError) {
-            setWorkspace({
-              id: ws.id,
-              name: ws.name,
-              slug: ws.slug,
-              logoUrl: ws.logo_url,
-              createdAt: ws.created_at,
-            });
-          }
+        if (profile.workspace_id) {
+          setWorkspace({
+            id: profile.workspace_id,
+            name: "Your Workspace",
+            slug: "workspace",
+            logoUrl: "",
+            createdAt: new Date().toISOString(),
+          });
         }
 
         return appUser;
       }
     } catch (e) {
-      console.error("❌❌ Profile fetch exception:", e);
-      // Don't throw - just return null and let user see login page
+      console.error("!! Profile fetch exception:", e);
       return null;
     }
     return null;
@@ -124,7 +115,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
   // Initialize auth state on mount
   useEffect(() => {
-    // Check active session
     const initializeAuth = async () => {
       try {
         const {
@@ -150,7 +140,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
     initializeAuth();
 
-    // Listen for auth changes
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (_event, session) => {
@@ -165,7 +154,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
     return () => subscription.unsubscribe();
   }, []);
-  //johncena2026
+
   const login = async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({
       email,
@@ -204,59 +193,76 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     });
 
     if (error) throw error;
-
-    // Create user profile in database
-    if (data.user) {
-      const { error: profileError } = await supabase.from("users").insert({
-        id: data.user.id,
-        email: data.user.email,
-        first_name: firstName,
-        last_name: lastName,
-        role: UserRole.MEMBER,
-        status: UserStatus.PENDING,
-      });
-
-      if (profileError) {
-        console.error("Profile creation error:", profileError);
-        throw profileError;
-      }
-    }
   };
 
   const createWorkspace = async (name: string, size: string) => {
     if (!user) throw new Error("No authenticated user");
 
-    // Insert workspace
-    const { data: ws, error: wsError } = await supabase
-      .from("workspaces")
-      .insert({
-        name,
-        slug: name.toLowerCase().replace(/\s+/g, "-"),
-        size,
-      })
-      .select()
-      .single();
+    try {
+      console.log(" Creating workspace with name:", name, "size:", size);
 
-    if (wsError) throw wsError;
-    if (!ws) throw new Error("Failed to create workspace");
+      // Insert workspace with ACTUAL columns only
+      const { data: ws, error: wsError } = await supabase
+        .from("workspaces")
+        .insert({
+          name,
+          description: `Workspace for ${size}`,
+          owner_id: user.id,
+        })
+        .select("id, name, description, owner_id, created_at, updated_at")
+        .single();
 
-    // Update user's workspace_id and promote to SUPER_ADMIN
-    const { error: userError } = await supabase
-      .from("users")
-      .update({
-        workspace_id: ws.id,
-        role: UserRole.SUPER_ADMIN,
-      })
-      .eq("id", user.id);
+      if (wsError) {
+        console.error(" Workspace creation error:", wsError);
+        throw wsError;
+      }
 
-    if (userError) throw userError;
+      if (!ws) throw new Error("Failed to create workspace");
 
-    // Refresh profile
-    await fetchProfile(user.id);
+      console.log(" Workspace created:", ws);
+
+      // Update user's workspace_id and promote to SUPER_ADMIN
+      const { error: userError } = await supabase
+        .from("profiles")
+        .update({
+          workspace_id: ws.id,
+          role: UserRole.SUPER_ADMIN,
+        })
+        .eq("id", user.id);
+
+      if (userError) {
+        console.error(" User update error:", userError);
+        throw userError;
+      }
+
+      console.log(" User promoted to SUPER_ADMIN");
+
+      //  Set workspace directly from created data
+      setWorkspace({
+        id: ws.id,
+        name: ws.name,
+        slug: ws.name?.toLowerCase().replace(/\s+/g, "-") || "workspace",
+        logoUrl: "",
+        createdAt: ws.created_at,
+      });
+
+      // Update user state with new workspace_id and role
+      if (user) {
+        setUser({
+          ...user,
+          workspaceId: ws.id,
+          role: UserRole.SUPER_ADMIN,
+        });
+      }
+
+      console.log(" Workspace setup complete!");
+    } catch (error) {
+      console.error(" Error in createWorkspace:", error);
+      throw error;
+    }
   };
 
   const joinWorkspace = async (code: string) => {
-    // TODO: Implement invite code validation
     throw new Error("Join workspace not implemented yet");
   };
 
@@ -281,7 +287,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const updateProfile = async (data: Partial<User>) => {
     if (!user) throw new Error("No authenticated user");
 
-    // Map App User fields to DB columns
     const dbUpdates: any = {};
     if (data.firstName) dbUpdates.first_name = data.firstName;
     if (data.lastName) dbUpdates.last_name = data.lastName;
@@ -289,13 +294,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     if (data.department) dbUpdates.department = data.department;
 
     const { error } = await supabase
-      .from("users")
+      .from("profiles")
       .update(dbUpdates)
       .eq("id", user.id);
 
     if (error) throw error;
 
-    // Optimistic update
     setUser({ ...user, ...data });
   };
 
