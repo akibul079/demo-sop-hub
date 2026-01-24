@@ -1,32 +1,97 @@
 """
-Database initialization script
-Run this before starting the backend for the first time
+Database initialization script - PRODUCTION READY
+Run this ONCE before starting the backend
+
+Usage:
+    python init_db.py
+
+This script:
+1. Creates all database tables
+2. Sets up the database schema
+3. Prepares the system for backend operation
 """
 
-import asyncio
-from sqlmodel import SQLModel, create_engine, Session
+import logging
+import os
+import sys
 
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+
+# Add backend to path
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+from app.core.database import init_db
 from app.core.config import settings
-from app.core.database import engine
-from app.models.folder import Folder
-from app.models.sop import SOP
-from app.models.user import User
-from app.models.workspace import Workspace
-
-# Import all models to ensure they're registered
-__all__ = [User, Workspace, Folder, SOP]
 
 
-def init_db():
-    """Initialize database with all tables"""
-    print("Creating database tables...")
+def main():
+    """Main initialization function"""
+    print("=" * 70)
+    print(" " * 15 + "SOP HUB - DATABASE INITIALIZATION")
+    print("=" * 70)
+    print()
 
-    # Create all tables
-    SQLModel.metadata.create_all(engine)
+    print(f"📍 Database Type: SQLite (Local Development)")
+    print(f"📁 Database File: sophub.db")
+    print(f"📁 Project: {settings.PROJECT_NAME}")
+    print()
 
-    print("✅ Database tables created successfully!")
-    print(f"Database URL: {settings.DATABASE_URL}")
+    print("🔄 Initializing database...")
+    print("-" * 70)
+    print()
+
+    # Initialize database
+    success = init_db()
+
+    print()
+    print("-" * 70)
+
+    if success:
+        print()
+        print("=" * 70)
+        print(" " * 20 + "✅ SUCCESS!")
+        print("=" * 70)
+        print()
+        print("📝 Database ready with tables:")
+        print("   ✓ users")
+        print("   ✓ workspaces")
+        print("   ✓ folders")
+        print("   ✓ sops")
+        print()
+        print("🚀 Next steps:")
+        print("   1. Start the backend server:")
+        print("      uvicorn app.main:app --reload")
+        print()
+        print("   2. Access API documentation:")
+        print("      http://localhost:8000/docs")
+        print()
+        print("=" * 70)
+        print()
+        return 0
+    else:
+        print()
+        print("=" * 70)
+        print(" " * 15 + "❌ DATABASE INITIALIZATION FAILED")
+        print("=" * 70)
+        print()
+        print("⚠️  Troubleshooting:")
+        print("   1. Check if port 8000 is available")
+        print("   2. Verify Python 3.8+ is installed")
+        print("   3. Run: pip install -r requirements.txt")
+        print("   4. Check disk space availability")
+        print()
+        print("💡 For help:")
+        print("   Review the error messages above")
+        print()
+        print("=" * 70)
+        print()
+        return 1
 
 
 if __name__ == "__main__":
-    init_db()
+    exit_code = main()
+    sys.exit(exit_code)

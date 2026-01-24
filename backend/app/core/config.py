@@ -1,3 +1,4 @@
+import os
 from pydantic import AnyHttpUrl, validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import List, Union
@@ -21,8 +22,8 @@ class Settings(BaseSettings):
             return v
         raise ValueError(v)
 
-    # Database
-    DATABASE_URL: str = "sqlite+aiosqlite:///.sophub.db"
+    # Database - Use sync SQLite for local development
+    DATABASE_URL: str = "sqlite:///./sophub.db"
 
     # Google OAuth Settings (COMPLETE)
     GOOGLE_CLIENT_ID: str = "457807005853-8g6hol2rjbqjqaudfh9sd71du61drlt.apps.googleusercontent.com"
