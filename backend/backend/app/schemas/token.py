@@ -10,12 +10,6 @@ class Token(BaseModel):
     email: str
 
 
-class TokenPayload(BaseModel):
-    """Token payload data - used internally"""
-    sub: str  # user_id
-    exp: Optional[int] = None
-
-
 class TokenData(BaseModel):
     """Token payload data"""
     sub: str  # user_id
