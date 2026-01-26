@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # Environment variables
 .env
 .env.local
@@ -47,10 +46,3 @@ build/
 # OS
 .DS_Store
 Thumbs.db
-=======
-__pycache__/
-*.pyc
-.env
-.env.production
-.env.local
->>>>>>> 64950c8 (Ignore cache and env files)
