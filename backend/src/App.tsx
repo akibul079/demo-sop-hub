@@ -637,7 +637,7 @@ const Dashboard: React.FC = () => {
       await db.updateChecklist(selectedChecklistId, {
         status: ChecklistStatus.RESOLVED,
         resolved_at: resolvedDate,
-        resolved_by_id: currentUser.id,
+        resolved_by: currentUser.id,
         final_notes: notes,
       });
 
